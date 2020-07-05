@@ -6,10 +6,9 @@ import (
 	c3mcommon "github.com/tidusant/chadmin-common"
 	"github.com/tidusant/chadmin-log"
 	"github.com/tidusant/chadmin-repo-models"
-	"os"
-
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"os"
 )
 
 var (
@@ -27,12 +26,15 @@ func init() {
 }
 
 //query and update https://stackoverflow.com/questions/11417784/mongodb-in-go-golang-with-mgo-how-do-i-update-a-record-find-out-if-update-wa
-func CreateBuild(shopid string, bs models.BuildScript) string {
+func CreateBuild(bs models.BuildScript) string {
 	col := db.C("builds")
 	//remove old build
-	cond := bson.M{"object": bs.Object, "shopid": shopid, "objectid": bs.ObjectId}
+	cond := bson.M{"status": 0, "shopid": bs.ShopID, "objectid": bs.ObjectID}
 	//"objectid": buildscript.ObjectID, "collection": buildscript.Collection}
-
+	if bs.ObjectID != "home" && bs.ObjectID != "script" {
+		cond["collection"] = bs.Collection
+	}
+	//change := bson.M{"$set": bson.M{"status": -1}}
 	_, err := col.RemoveAll(cond)
 
 	bs.Status = 0
@@ -40,6 +42,10 @@ func CreateBuild(shopid string, bs models.BuildScript) string {
 	bs.Modified = time.Now().Unix()
 	err = col.Insert(bs)
 	c3mcommon.CheckError("insert build script", err)
+	if bs.ObjectID != "home" {
+		bs.ObjectID = "home"
+		CreateBuild(bs)
+	}
 
 	return ""
 }
@@ -51,17 +57,17 @@ func GetBuild() models.BuildScript {
 		Update:    bson.M{"$set": bson.M{"status": 1, "modified": time.Now().Unix()}},
 		ReturnNew: true,
 	}
-	col.Find(bson.M{"status": 0}).Apply(change, &bs)
-
+	_, err := col.Find(bson.M{"status": 0}).Apply(change, &bs)
+	c3mcommon.CheckError("GetBuild script", err)
 	return bs
 
 }
 
-func RemoveAllBuild(shopID string) string {
+func RemoveBuild(shopID string) string {
 	col := db.C("builds")
-	cond := bson.M{"shopid": shopID}
+	cond := bson.M{"status": 0, "shopid": shopID}
 
 	_, err := col.RemoveAll(cond)
-	c3mcommon.CheckError("RemoveAllBuild script", err)
+	c3mcommon.CheckError("insert build script", err)
 	return ""
 }
